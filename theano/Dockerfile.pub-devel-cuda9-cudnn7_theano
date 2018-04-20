@@ -1,0 +1,46 @@
+# docker build  -t theano_cuda9_cudnn7_nccl2.1.4 \
+#   -f Dockerfile.pub-devel-cuda9-cudnn7_theano \
+#   $(pwd)
+
+
+# https://store.docker.com/community/images/nvidia/cuda/tags
+ARG BASECONTAINER=nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04
+# ARG BASECONTAINER=nvidia/cuda:9.1-cudnn7-devel-ubuntu16.04
+FROM $BASECONTAINER
+
+ARG NCCLVERSION=2.1.4-1+cuda9.0
+# ARG NCCLVERSION=2.1.4-1+cuda9.1
+RUN echo "deb http://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1604/x86_64 /" \
+    > /etc/apt/sources.list.d/nvidia-ml.list
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libnccl2=$NCCLVERSION \
+        libnccl-dev=$NCCLVERSION && \
+    rm -rf /var/lib/apt/lists/*
+
+
+RUN apt-get update --fix-missing && apt-get install -y wget bzip2 ca-certificates \
+    libglib2.0-0 libxext6 libsm6 libxrender1 
+
+RUN echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh && \
+    wget --quiet https://repo.continuum.io/miniconda/Miniconda2-4.4.10-Linux-x86_64.sh -O ~/miniconda.sh && \
+    /bin/bash ~/miniconda.sh -b -p /opt/conda && \
+    rm ~/miniconda.sh
+
+ENV THEANO_FLAGS device=cuda
+ENV MKL_THREADING_LAYER GNU
+ENV PATH /opt/conda/bin:$PATH
+
+RUN conda update -n base conda && \
+    conda install -c conda-forge theano && \
+    conda install -c conda-forge pygpu && \
+    conda install mkl-service
+
+RUN conda install keras --no-deps && conda install PyYaml
+
+RUN rm -rf /tmp/*
+
+WORKDIR /workspace
+
+COPY nvidia_entrypoint_pub_theano.sh /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

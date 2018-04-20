@@ -1,0 +1,58 @@
+# docker build  -t cntk2.4_cuda9_cudnn7_nccl2.1.4 \
+#   -f Dockerfile.pub-devel-cuda9-cudnn7_cntk2.4 \
+#   $(pwd)
+
+
+# https://store.docker.com/community/images/nvidia/cuda/tags
+ARG BASECONTAINER=nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04
+# ARG BASECONTAINER=nvidia/cuda:9.1-cudnn7-devel-ubuntu16.04
+FROM $BASECONTAINER
+
+ARG NCCLVERSION=2.1.4-1+cuda9.0
+# ARG NCCLVERSION=2.1.4-1+cuda9.1
+RUN echo "deb http://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1604/x86_64 /" \
+    > /etc/apt/sources.list.d/nvidia-ml.list
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libnccl2=$NCCLVERSION \
+        libnccl-dev=$NCCLVERSION && \
+    rm -rf /var/lib/apt/lists/*
+
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
+        git \
+        pkg-config \
+        python \
+        python-dev \
+        python-pip \
+        python-virtualenv \
+        rsync \
+        software-properties-common \
+        swig \
+        unzip \
+        zip \
+        zlib1g-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+
+ENV PYTHONIOENCODING utf-8
+
+RUN pip install --upgrade pip && pip install --upgrade virtualenv
+
+# Install OpenMPI: Default OpenMPI in Ubuntu 16 is 1.10.2
+RUN apt-get update && apt-get install -y \
+        mpi-default-dev \
+        mpi-default-bin && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN pip install -v https://cntk.ai/PythonWheel/GPU/cntk-2.4-cp27-cp27mu-linux_x86_64.whl
+
+
+RUN rm -rf /tmp/*
+
+
+WORKDIR /workspace
+
+COPY nvidia_entrypoint_pub_cntk.sh /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

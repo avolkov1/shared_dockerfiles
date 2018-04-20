@@ -1,0 +1,17 @@
+# docker run -it --name=sreg -v /tmp:/tmp --entrypoint=bash --privileged sregistry-cli
+# singularity build lolcow.simg Singularity_example.recipe
+
+
+Bootstrap: docker
+From: ubuntu:16.04
+
+%post
+    apt-get -y update
+    apt-get -y install fortune cowsay lolcat
+
+%environment
+    export LC_ALL=C
+    export PATH=/usr/games:$PATH
+
+%runscript
+    fortune | cowsay | lolcat
