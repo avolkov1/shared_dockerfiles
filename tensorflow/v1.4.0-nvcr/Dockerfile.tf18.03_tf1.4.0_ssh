@@ -1,7 +1,9 @@
-# docker build -t tf18.03_tf1.4.0_ssh -f Dockerfile.tf18.03_ssh $(pwd)
-# docker tag tf18.03_tf1.4.0_ssh nvcr.io/nvidian_sas/avolkov:tf18.03_tf1.4.0_ssh
-# docker push nvcr.io/nvidian_sas/avolkov:tf18.03_tf1.4.0_ssh
+# export TAG="tf18.03_tf1.4.0_ssh"
+# docker build -t $TAG -f Dockerfile.$TAG $(pwd)
+# docker tag $TAG nvcr.io/nvidian_sas/avolkov:$TAG
+# docker push nvcr.io/nvidian_sas/avolkov:$TAG
 
+# https://ngc.nvidia.com/registry/nvidia-tensorflow
 ARG BASECONTAINER=nvcr.io/nvidia/tensorflow:18.03-py2
 FROM $BASECONTAINER
 
