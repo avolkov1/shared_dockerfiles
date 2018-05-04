@@ -1,0 +1,210 @@
+# export TAG="tf1.7.0py2_cuda9.0_cudnn7_nccl2.1.15_hvd_ompi3_ibverbs"
+# docker build -t $TAG -f Dockerfile.$TAG $(pwd)
+# docker tag $TAG nvcr.io/nvidian_sas/avolkov:$TAG
+# docker push nvcr.io/nvidian_sas/avolkov:$TAG
+
+
+# https://store.docker.com/community/images/nvidia/cuda/tags
+ARG BASECONTAINER=nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04
+# ARG BASECONTAINER=nvcr.io/nvidia/cuda:9.0-cudnn7.1-devel-ubuntu16.04
+FROM $BASECONTAINER
+
+ARG NCCLVERSION=2.1.15-1+cuda9.0
+RUN echo "deb http://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1604/x86_64 /" \
+    > /etc/apt/sources.list.d/nvidia-ml.list
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libnccl2=$NCCLVERSION \
+        libnccl-dev=$NCCLVERSION && \
+    rm -rf /var/lib/apt/lists/*
+
+
+# Build TF for Python $PYVER
+ARG PYVER=2.7
+
+# MISCELLANEOUS OS PACKAGES AND PYTHON SETUP ----------------------------------
+# SHELL ["/bin/bash", "-c"]
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
+        git \
+        pkg-config \
+        python$PYVER \
+        python$PYVER-dev \
+        rsync \
+        software-properties-common \
+        swig \
+        unzip \
+        zip \
+        zlib1g-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN rm -f /usr/bin/python && \
+    rm -f /usr/bin/python`echo $PYVER | cut -c1-1` && \
+    ln -s /usr/bin/python$PYVER /usr/bin/python && \
+    ln -s /usr/bin/python$PYVER /usr/bin/python`echo $PYVER | cut -c1-1`
+
+
+# Install pip.
+RUN curl -O https://bootstrap.pypa.io/get-pip.py && \
+    python$PYVER get-pip.py && \
+    rm get-pip.py
+
+RUN pip$PYVER install --no-cache-dir --upgrade --no-cache-dir \
+        virtualenv numpy pexpect psutil nltk
+
+
+# OS PACKAGES FOR RDMA, Infiniband, Hwloc -------------------------------------
+RUN apt-get update && apt-get install -y \
+        libhwloc-dev libnuma1 libnuma-dev \
+        librdmacm* \
+        libibverbs-dev \
+        libibverbs1 \
+        librdmacm1 \
+        librdmacm-dev \
+        rdmacm-utils \
+        libibmad-dev \
+        libibmad5 \
+        infiniband-diags \
+        libmlx5-1 \
+        libmlx4-1 && \
+    rm -rf /var/lib/apt/lists/*
+
+
+ENV PYTHONIOENCODING utf-8
+
+# SETUP SSH -------------------------------------------------------------------
+RUN apt-get update && apt-get install -y \
+        gfortran ssh \
+        openssh-client openssh-server && \
+    mkdir -p /var/run/sshd && \
+    rm -rf /var/lib/apt/lists/*
+
+# Allow OpenSSH to talk to containers without asking for confirmation
+RUN cat /etc/ssh/ssh_config | grep -v StrictHostKeyChecking > /etc/ssh/ssh_config.new && \
+    echo "    StrictHostKeyChecking no" >> /etc/ssh/ssh_config.new && \
+    mv /etc/ssh/ssh_config.new /etc/ssh/ssh_config
+
+# ref: https://docs.docker.com/engine/examples/running_ssh_service/#build-an-eg_sshd-image
+RUN sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+
+# SSH login fix. Otherwise user is kicked off after login
+RUN sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
+
+
+# SETUP OPENMPI ---------------------------------------------------------------
+# Install OpenMPI: Default OpenMPI in Ubuntu 16 is 1.10.2
+# RUN apt-get update && apt-get install -y \
+#        mpi-default-dev \
+#        mpi-default-bin && \
+#    rm -rf /var/lib/apt/lists/*
+ARG OPENMPI_URL=https://www.open-mpi.org/software/ompi/v3.0/downloads/openmpi-3.0.0.tar.gz
+# ARG OPENMPI_URL=https://www.open-mpi.org/software/ompi/v1.10/downloads/openmpi-1.10.7.tar.gz
+RUN wget -O /tmp/openmpi.tar.gz $OPENMPI_URL && \
+    cd /tmp && mkdir openmpi && \
+    tar -zxf openmpi.tar.gz --strip-components=1 -C openmpi && cd openmpi && \
+    # ./configure --prefix=/usr/local/openmpi --with-cuda CXX=g++ CC=gcc FC=gfortran F90=gfortran F77=gfortran && \
+    ./configure --enable-orterun-prefix-by-default --disable-getpwuid \
+        --prefix=/usr/local/openmpi --with-cuda --with-verbs && \
+        # --enable-shared \
+        # --with-slurm \
+        # --enable-mpi-thread-multiple && \
+    make -j && make all install && \
+    echo "/usr/local/openmpi/lib" >> /etc/ld.so.conf.d/openmpi.conf && ldconfig && \
+    rm -rf /tmp/*
+
+
+ENV MPIROOT /usr/local/openmpi
+ENV PATH ${MPIROOT}/bin:${PATH}
+ENV LD_LIBRARY_PATH ${MPIROOT}/lib:${LD_LIBRARY_PATH}
+ENV MANPATH $MPIROOT/share/man:$MANPATH
+
+
+# SETUP BAZEL -----------------------------------------------------------------
+# TF 1.0 upstream needs this symlink
+RUN mkdir -p /usr/lib/x86_64-linux-gnu/include/ && \
+     ln -s /usr/include/cudnn.h /usr/lib/x86_64-linux-gnu/include/cudnn.h
+
+
+# Set up Bazel.
+RUN add-apt-repository -y ppa:openjdk-r/ppa && apt-get update && \
+    apt-get install -y --no-install-recommends openjdk-8-jdk openjdk-8-jre-headless && \
+    rm -rf /var/lib/apt/lists/*
+
+# Running bazel inside a `docker build` command causes trouble, cf:
+#   https://github.com/bazelbuild/bazel/issues/134
+#   https://github.com/bazelbuild/bazel/issues/418
+ENV BAZELRC /root/.bazelrc
+RUN echo "startup --batch" >> $BAZELRC && \
+    echo "build --spawn_strategy=standalone --genrule_strategy=standalone" >> $BAZELRC
+
+RUN BAZEL_VERSION=0.11.0 && \
+    mkdir /bazel && cd /bazel && \
+    curl -fSsL -O https://github.com/bazelbuild/bazel/releases/download/$BAZEL_VERSION/bazel-$BAZEL_VERSION-installer-linux-x86_64.sh && \
+    curl -fSsL -o /bazel/LICENSE.txt https://raw.githubusercontent.com/bazelbuild/bazel/master/LICENSE && \
+    bash ./bazel-$BAZEL_VERSION-installer-linux-x86_64.sh && \
+    rm -rf /bazel
+
+
+# INSTALL TENSORFLOW ----------------------------------------------------------
+# Download and build TensorFlow with NCCL2.
+WORKDIR /opt/tensorflow
+ARG TF_BRANCH=v1.7.0
+RUN TF_BRANCH=$TF_BRANCH && \
+    git clone -b ${TF_BRANCH} --depth 1 https://github.com/tensorflow/tensorflow.git .
+
+
+# Build TF for Python
+ENV CUDA_TOOLKIT_PATH /usr/local/cuda
+ENV TF_CUDA_VERSION "9.0"
+ENV TF_CUDNN_VERSION "7"
+ENV CUDNN_INSTALL_PATH /usr/lib/x86_64-linux-gnu
+ENV TF_NEED_CUDA 1
+ENV TF_CUDA_COMPUTE_CAPABILITIES "3.5,5.2,6.0,6.1,7.0"
+ENV TF_NEED_GCP 0
+ENV TF_NEED_HDFS 1
+ENV TF_ENABLE_XLA 1
+ENV CC_OPT_FLAGS "-march=sandybridge -mtune=broadwell"
+ENV TF_NEED_JEMALLOC=0
+ENV TF_NEED_S3 0
+
+
+# rdma stuff for Multinode/Distributed TF on HPC clusters.
+# RDMA grps+verbs TF 1.3+ or 1.2.1 with patch
+ENV TF_NEED_VERBS 1
+# GPUDirect RDMA 'grpc+gdr' TF 1.4+
+# ENV TF_NEED_GDR 1
+
+ENV TF_ADJUST_HUE_FUSED         1
+ENV TF_ADJUST_SATURATION_FUSED  1
+ENV TF_ENABLE_WINOGRAD_NONFUSED 1
+ENV TF_AUTOTUNE_THRESHOLD       2
+ENV CUDA_DEVICE_MAX_CONNECTIONS 12 # WAR for perf bug on K80 + NCCL
+
+# install Horovod and additional python packages together with tensorflow
+RUN mkdir /tmp/stubs && \
+    cp -av /usr/local/cuda/lib64/stubs/* /tmp/stubs && \
+    ln -fs /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
+    LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs:${LD_LIBRARY_PATH} && \
+    export PYTHON_BIN_PATH=/usr/bin/python$PYVER && \
+    yes "" | ./configure && \
+    bazel build -c opt --config=cuda tensorflow/tools/pip_package:build_pip_package && \
+    cp -av /tmp/stubs/* /usr/local/cuda/lib64/stubs/ && \
+    bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/pip && \
+    pip$PYVER install --no-cache-dir --upgrade /tmp/pip/tensorflow-*.whl && \
+    HOROVOD_GPU_ALLREDUCE=NCCL pip$PYVER install --no-cache-dir horovod && \
+    pip$PYVER install --no-cache-dir --upgrade --no-cache-dir \
+        jupyter matplotlib scipy pandas keras h5py && \
+    rm -rf /tmp/pip/tensorflow-*.whl /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
+    bazel clean --expunge && \
+    rm -rf /root/.cache/bazel && \
+    rm .tf_configure.bazelrc .bazelrc && \
+    rm -rf /tmp/*
+
+# FINALIZE ENTRYPOINT ---------------------------------------------------------
+# TensorBoard
+EXPOSE 6006
+
+WORKDIR /workspace
+
+COPY nvidia_entrypoint_pub.sh /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
