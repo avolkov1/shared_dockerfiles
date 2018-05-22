@@ -1,6 +1,9 @@
-FROM continuumio/miniconda3
+# export TAG="sregistrycli"
+# docker build -t $TAG -f Dockerfile.$TAG $(pwd)
+# docker tag $TAG nvcr.io/nvidian_sas/avolkov:$TAG
+# docker push nvcr.io/nvidian_sas/avolkov:$TAG
 
-# docker build -t vanessa/sregistry-cli .
+FROM continuumio/miniconda3
 
 ENV PATH /opt/conda/bin:$PATH
 LABEL maintainer avolkov@nvidia.com
@@ -12,7 +15,9 @@ RUN apt-get update && apt-get install -y git build-essential \
                    automake \
                    autoconf \
                    uuid-dev \
-                   libssl-dev
+                   libssl-dev \
+                   libarchive-dev
+
 WORKDIR /opt
 RUN git clone https://www.github.com/singularityware/singularity.git
 RUN git clone https://www.github.com/singularityhub/sregistry-cli -b development

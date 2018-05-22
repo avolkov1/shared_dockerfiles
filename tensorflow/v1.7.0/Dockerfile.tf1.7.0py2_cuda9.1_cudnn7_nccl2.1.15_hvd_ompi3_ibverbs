@@ -15,7 +15,8 @@ ARG NCCLVERSION=2.1.15-1+cuda9.1
 RUN echo "deb http://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1604/x86_64 /" \
     > /etc/apt/sources.list.d/nvidia-ml.list
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends --allow-downgrades \
         libnccl2=$NCCLVERSION \
         libnccl-dev=$NCCLVERSION && \
     rm -rf /var/lib/apt/lists/*
@@ -26,7 +27,8 @@ ARG PYVER=2.7
 
 # MISCELLANEOUS OS PACKAGES AND PYTHON SETUP ----------------------------------
 # SHELL ["/bin/bash", "-c"]
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends --allow-downgrades \
         curl \
         git \
         pkg-config \

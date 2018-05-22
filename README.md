@@ -33,4 +33,18 @@ Publish and share dockerfiles for reference.
     `set(Caffe_known_gpu_archs "30 35 50 60 61 70")`.
 
 
+### Singularity
+
+* [Dockerfile.sregistrycli](sregistrycli/Dockerfile.sregistrycli)
+
+    Use this container to run singularity to build singularity recipes and
+    sregistry-cli for pulling containers.
+
+    ```
+    export SREGISTRY_NVIDIA_TOKEN=<YOUAPIKEY>
+    SREGISTRY_CLIENT=nvidia sregistry pull tensorflow:17.12
+    sregistry pull nvidia://tensorflow:17.12
+    ```
+
+
 ### TODO: Document the other containers
