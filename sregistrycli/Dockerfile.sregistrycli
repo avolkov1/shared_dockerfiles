@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y git build-essential \
                    libarchive-dev
 
 WORKDIR /opt
-RUN git clone https://www.github.com/singularityware/singularity.git
+RUN git clone -b 2.5.1 https://www.github.com/singularityware/singularity.git
 RUN git clone https://www.github.com/singularityhub/sregistry-cli -b development
 
 WORKDIR /opt/singularity
