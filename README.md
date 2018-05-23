@@ -56,7 +56,7 @@ Publish and share dockerfiles for reference.
     sregistry pull nvidia://tensorflow:17.12
     ```
     More references can be found here:<br/>
-    (https://singularityhub.github.io/sregistry-cli/client-nvidia)[https://singularityhub.github.io/sregistry-cli/client-nvidia]
+    [https://singularityhub.github.io/sregistry-cli/client-nvidia](https://singularityhub.github.io/sregistry-cli/client-nvidia)
 
     Pulling NGC (nvidia GPU cloud) containers can also be done via singularity
     version 2.5.x and above. Example:
