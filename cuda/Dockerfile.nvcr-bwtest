@@ -1,0 +1,19 @@
+# export TAG="nvcr-bwtest"
+# docker build -t $TAG -f Dockerfile.$TAG $(pwd)
+# docker tag $TAG nvcr.io/nvidian_sas/avolkov:$TAG
+# docker push nvcr.io/nvidian_sas/avolkov:$TAG
+FROM nvcr.io/nvidia/cuda:9.0-cudnn7.1-devel-ubuntu16.04
+
+RUN apt-get update && apt-get install -y apt-transport-https
+RUN echo "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64 /" \
+    > /etc/apt/sources.list.d/cuda.list
+RUN cd /tmp && apt-get update && apt-get download cuda-samples-9-0 && \
+    ar p cuda-samples-9-0_9.0.176-1_amd64.deb data.tar.xz | tar xJ && \
+    mv usr/local/cuda-9.0/samples /usr/local/cuda/samples && \
+    rm -rf /tmp/*
+
+
+WORKDIR /usr/local/cuda/samples/1_Utilities/p2pBandwidthLatencyTest
+RUN make
+
+CMD ./p2pBandwidthLatencyTest

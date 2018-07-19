@@ -1,20 +1,20 @@
-# export TAG="tf1.8.0py3_cuda9.1_cudnn7_nccl2.1.15_hvd_ompi3_ibverbs"
+# export TAG="tf1.8.0py3_cuda9.2_cudnn7_nccl2.2.13_hvd_ompi3_ibverbs"
 # docker build -t nvcr.io/nvidian_sas/avolkov:$TAG -f Dockerfile.$TAG $(pwd)
 # or two steps:
 # docker build -t $TAG -f Dockerfile.$TAG $(pwd)
 # docker tag $TAG nvcr.io/nvidian_sas/avolkov:$TAG
 # docker push nvcr.io/nvidian_sas/avolkov:$TAG
 
-ARG CUDAVER=9.1
+ARG CUDAVER=9.2
 
 # https://store.docker.com/community/images/nvidia/cuda/tags
 ARG BASECONTAINER=nvidia/cuda:${CUDAVER}-cudnn7-devel-ubuntu16.04
 FROM $BASECONTAINER
 
 # Have to set CUDAVER Twice b/c ARGS before FROM are not propagated.
-ARG CUDAVER=9.1
+ARG CUDAVER=9.2
 
-ARG NCCLVERSION=2.1.15-1+cuda${CUDAVER}
+ARG NCCLVERSION=2.2.13-1+cuda${CUDAVER}
 RUN echo "deb http://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1604/x86_64 /" \
     > /etc/apt/sources.list.d/nvidia-ml.list
 
