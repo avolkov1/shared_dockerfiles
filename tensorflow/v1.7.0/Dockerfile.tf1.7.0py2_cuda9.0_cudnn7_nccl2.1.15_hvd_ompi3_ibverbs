@@ -1,15 +1,20 @@
 # export TAG="tf1.7.0py2_cuda9.0_cudnn7_nccl2.1.15_hvd_ompi3_ibverbs"
+# docker build -t nvcr.io/nvidian_sas/avolkov:$TAG -f Dockerfile.$TAG $(pwd)
+# or two steps:
 # docker build -t $TAG -f Dockerfile.$TAG $(pwd)
 # docker tag $TAG nvcr.io/nvidian_sas/avolkov:$TAG
 # docker push nvcr.io/nvidian_sas/avolkov:$TAG
 
+ARG CUDAVER=9.0
 
 # https://store.docker.com/community/images/nvidia/cuda/tags
-ARG BASECONTAINER=nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04
-# ARG BASECONTAINER=nvcr.io/nvidia/cuda:9.0-cudnn7.1-devel-ubuntu16.04
+ARG BASECONTAINER=nvidia/cuda:${CUDAVER}-cudnn7-devel-ubuntu16.04
 FROM $BASECONTAINER
 
-ARG NCCLVERSION=2.1.15-1+cuda9.0
+# Have to set CUDAVER Twice b/c ARGS before FROM are not propagated.
+ARG CUDAVER=9.0
+
+ARG NCCLVERSION=2.1.15-1+cuda${CUDAVER}
 RUN echo "deb http://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1604/x86_64 /" \
     > /etc/apt/sources.list.d/nvidia-ml.list
 
@@ -38,20 +43,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         zip \
         zlib1g-dev && \
     rm -rf /var/lib/apt/lists/*
-
-RUN rm -f /usr/bin/python && \
-    rm -f /usr/bin/python`echo $PYVER | cut -c1-1` && \
-    ln -s /usr/bin/python$PYVER /usr/bin/python && \
-    ln -s /usr/bin/python$PYVER /usr/bin/python`echo $PYVER | cut -c1-1`
-
-
-# Install pip.
-RUN curl -O https://bootstrap.pypa.io/get-pip.py && \
-    python$PYVER get-pip.py && \
-    rm get-pip.py
-
-RUN pip$PYVER install --no-cache-dir --upgrade --no-cache-dir \
-        virtualenv numpy pexpect psutil nltk
 
 
 # OS PACKAGES FOR RDMA, Infiniband, Hwloc -------------------------------------
@@ -120,6 +111,28 @@ ENV LD_LIBRARY_PATH ${MPIROOT}/lib:${LD_LIBRARY_PATH}
 ENV MANPATH $MPIROOT/share/man:$MANPATH
 
 
+# SETUP PYTHON ENVIRONMENT ----------------------------------------------------
+RUN rm -f /usr/bin/python && \
+    rm -f /usr/bin/python`echo $PYVER | cut -c1-1` && \
+    ln -s /usr/bin/python$PYVER /usr/bin/python && \
+    ln -s /usr/bin/python$PYVER /usr/bin/python`echo $PYVER | cut -c1-1`
+
+# Install pip.
+RUN curl -O https://bootstrap.pypa.io/get-pip.py && \
+    python$PYVER get-pip.py && \
+    rm get-pip.py
+
+# Install python dependencies for Tensorflow
+RUN pip$PYVER install --no-cache-dir --upgrade  \
+        virtualenv numpy pexpect psutil nltk mock && \
+    bash -c "if [ $(python$PYVER -c "print($PYVER < 3.4)") == "True" ] ; then \
+        pip$PYVER install --no-cache-dir --upgrade enum34; fi "
+# https://www.tensorflow.org/install/install_sources#PrepareLinux
+# Without enum34 get a stupid error: python/ops/variable_scope.py
+# AttributeError: 'int' object attribute '__doc__' is read-only
+# https://github.com/tensorflow/tensorflow/issues/12491
+
+
 # SETUP BAZEL -----------------------------------------------------------------
 # TF 1.0 upstream needs this symlink
 RUN mkdir -p /usr/lib/x86_64-linux-gnu/include/ && \
@@ -156,7 +169,7 @@ RUN TF_BRANCH=$TF_BRANCH && \
 
 # Build TF for Python
 ENV CUDA_TOOLKIT_PATH /usr/local/cuda
-ENV TF_CUDA_VERSION "9.0"
+ENV TF_CUDA_VERSION "${CUDAVER}"
 ENV TF_CUDNN_VERSION "7"
 ENV CUDNN_INSTALL_PATH /usr/lib/x86_64-linux-gnu
 ENV TF_NEED_CUDA 1
@@ -193,7 +206,7 @@ RUN mkdir /tmp/stubs && \
     bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/pip && \
     pip$PYVER install --no-cache-dir --upgrade /tmp/pip/tensorflow-*.whl && \
     HOROVOD_GPU_ALLREDUCE=NCCL pip$PYVER install --no-cache-dir horovod && \
-    pip$PYVER install --no-cache-dir --upgrade --no-cache-dir \
+    pip$PYVER install --no-cache-dir --upgrade \
         jupyter matplotlib scipy pandas keras h5py && \
     rm -rf /tmp/pip/tensorflow-*.whl /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
     bazel clean --expunge && \
