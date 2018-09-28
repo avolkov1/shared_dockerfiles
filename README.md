@@ -12,7 +12,7 @@ Publish and share dockerfiles for reference.
 
 ### Tensorflow Dockerfiles
 
-* [Dockerfile.tf18.03\_tf1.4.0\_ssh](tensorflow/v1.4.0-nvcr/Dockerfile.tf18.03_ssh)
+* [Dockerfile.tf18.03\_tf1.4.0\_ssh](tensorflow/v1.4.0-nvcr/Dockerfile.tf18.03_tf1.4.0_ssh)
 
     Tensorflow container with ssh client and server installed. This enables
     the container to be run in multinode setups with MPI (Horovod installed)
@@ -38,6 +38,16 @@ Publish and share dockerfiles for reference.
     BVLC Caffe container built against CUDA 9 and NCCL2. Added Volta
     architecture support via CUDA 9 and cmake option 70
     `set(Caffe_known_gpu_archs "30 35 50 60 61 70")`.
+
+
+### PyTorch Dockerfiles
+
+* [Dockerfile.pytorch\_hvd\_apex](pytorch/Dockerfile.pytorch_hvd_apex)
+
+    PyTorch 0.4.0 container (Ubuntu 16 CUDA 9) with Horovod and
+    Apex ([https://github.com/NVIDIA/apex](https://github.com/NVIDIA/apex))
+    installed. Originally based on Horovod dockerfile
+    ([https://github.com/uber/horovod/blob/master/Dockerfile](https://github.com/uber/horovod/blob/master/Dockerfile)).
 
 
 ### Singularity
