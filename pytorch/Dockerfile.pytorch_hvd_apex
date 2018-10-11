@@ -21,7 +21,8 @@ RUN echo "deb http://developer.download.nvidia.com/compute/machine-learning/repo
     > /etc/apt/sources.list.d/nvidia-ml.list
 
 # --allow-downgrades --allow-change-held-packages
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends --allow-change-held-packages --allow-downgrades \
         build-essential \
         cmake \
         git \
@@ -35,7 +36,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libjpeg-dev \
         libpng-dev \
         python${PYTHON_VERSION} \
-        python${PYTHON_VERSION}-dev
+        python${PYTHON_VERSION}-dev \
+        pdsh
 
 RUN ln -s /usr/bin/python${PYTHON_VERSION} /usr/bin/python
 
@@ -62,6 +64,11 @@ RUN sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/s
 # SSH login fix. Otherwise user is kicked off after login
 RUN sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
 
+# OS PACKAGES FOR RDMA, Infiniband, Hwloc -------------------------------------
+RUN apt-get update && apt-get install -y \
+        libhwloc-dev libnuma1 libnuma-dev && \
+    rm -rf /var/lib/apt/lists/*
+
 
 # Install Open MPI ------------------------------------------------------------
 #     ./configure --enable-orterun-prefix-by-default --with-verbs 
@@ -69,9 +76,9 @@ RUN sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so
 #     --prefix=/usr/local/openmpi --with-cuda --with-verbs && \
 RUN mkdir /tmp/openmpi && \
     cd /tmp/openmpi && \
-    wget https://www.open-mpi.org/software/ompi/v3.0/downloads/openmpi-3.0.0.tar.gz && \
-    tar zxf openmpi-3.0.0.tar.gz && \
-    cd openmpi-3.0.0 && \
+    wget https://download.open-mpi.org/release/open-mpi/v3.1/openmpi-3.1.2.tar.gz && \
+    tar zxf openmpi-3.1.2.tar.gz && \
+    cd openmpi-3.1.2 && \
     ./configure --enable-orterun-prefix-by-default && \
     make -j $(nproc) all && \
     make install && \
@@ -116,8 +123,8 @@ RUN pip install --no-cache-dir git+https://github.com/NVIDIA/apex.git#egg=apex
 
 
 # OS PACKAGES FOR RDMA, Infiniband, Hwloc -------------------------------------
+# libhwloc-dev libnuma1 libnuma-dev \
 RUN apt-get update && apt-get install -y \
-        libhwloc-dev libnuma1 libnuma-dev \
         librdmacm* \
         libibverbs-dev \
         libibverbs1 \
