@@ -26,7 +26,13 @@ Publish and share dockerfiles for reference.
 
 * [Dockerfile.tf1.7.0py2\_cuda9.1\_cudnn7\_nccl2.1.15\_hvd\_ompi3\_ibverbs](tensorflow/v1.7.0/Dockerfile.tf1.7.0py2_cuda9.1_cudnn7_nccl2.1.15_hvd_ompi3_ibverbs)
 
-    Tensorflow v1.7.0 (with CUDA 9.1 latest driver) with ssh client and server
+    Tensorflow v1.7.0 (with CUDA 9.1) with ssh client and server
+    installed. This enables the container to be run in multinode setups with
+    MPI (Horovod installed) via docker.
+
+* [Dockerfile.tf1.12.0py3_cuda10.0_cudnn7_ubuntu16_nccl2.3.7_hvd_ompi3_ibverbs](tensorflow/v1.12.0/Dockerfile.tf1.12.0py3_cuda10.0_cudnn7_ubuntu16_nccl2.3.7_hvd_ompi3_ibverbs)
+
+    Tensorflow v1.12.0 (with CUDA 10.0) with ssh client and server
     installed. This enables the container to be run in multinode setups with
     MPI (Horovod installed) via docker.
 
