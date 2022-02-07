@@ -1,0 +1,26 @@
+# export TAG="pytorch-21.12_deepspeed-0.5.10"
+# docker build -t $TAG -f Dockerfile.$TAG $(pwd)
+# docker tag $TAG nvcr.io/nvidian/sae/avolkov:$TAG
+# docker push nvcr.io/nvidian/sae/avolkov:$TAG
+FROM nvcr.io/nvidia/pytorch:21.12-py3
+
+# https://github.com/microsoft/DeepSpeed/issues/750
+ENV TORCH_CUDA_ARCH_LIST="7.0 7.5 8.0 8.6+PTX"
+
+RUN apt update && \
+    DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends \
+      libaio-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# triton is not the inference server. It comes from: https://github.com/openai/triton
+# without patching fuse_lab_cuda_kernel.cu use: nvcr.io/nvidia/pytorch:21.12-py3
+# For some reason need to try to pip install twice to get deepspeed to install.
+RUN export CONDA_BUILD=1 && \
+    export TORCH_CUDA_ARCH_LIST="7.0 7.5 8.0 8.6+PTX" && \
+    pip install triton==1.0.0 && \
+    DS_BUILD_OPS=1 pip install deepspeed==0.5.10 --global-option="build_ext" --global-option="-j8" && \
+    conda clean --all -y
+
+RUN mkdir -p /opt/deepspeed_setup && \
+    ds_report >/opt/deepspeed_setup/ds_report_out.txt 2>&1 && \
+    cat /opt/deepspeed_setup/ds_report_out.txt

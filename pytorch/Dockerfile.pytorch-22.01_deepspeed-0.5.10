@@ -1,0 +1,32 @@
+# export TAG="pytorch-22.01_deepspeed-0.5.10"
+# docker build -t $TAG -f Dockerfile.$TAG $(pwd)
+# docker tag $TAG nvcr.io/nvidian/sae/avolkov:$TAG
+# docker push nvcr.io/nvidian/sae/avolkov:$TAG
+FROM nvcr.io/nvidia/pytorch:22.01-py3
+
+# https://github.com/microsoft/DeepSpeed/issues/750
+ENV TORCH_CUDA_ARCH_LIST="7.0 7.5 8.0 8.6+PTX"
+
+RUN apt update && \
+    DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends \
+      libaio-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# bug report: https://github.com/microsoft/DeepSpeed/issues/1584
+# patching: https://github.com/microsoft/DeepSpeed/pull/1725/files
+RUN mkdir -p /opt/deepspeed_setup && \
+    cd /opt/deepspeed_setup && \
+    wget https://github.com/microsoft/DeepSpeed/archive/refs/tags/v0.5.10.tar.gz && \
+    tar -xf v0.5.10.tar.gz && \
+    cd /opt/deepspeed_setup/DeepSpeed-0.5.10 && \
+    sed -i 's/THCudaCheck/C10_CUDA_CHECK/g' csrc/lamb/fused_lamb_cuda_kernel.cu
+
+# triton is not the inference server. It comes from: https://github.com/openai/triton
+RUN export CONDA_BUILD=1 && \
+    pip install triton==1.0.0 && \
+    cd /opt/deepspeed_setup/DeepSpeed-0.5.10 && \
+    DS_BUILD_OPS=1 pip install . --global-option="build_ext" --global-option="-j8" && \
+    conda clean --all -y
+
+RUN ds_report >/opt/deepspeed_setup/ds_report_out.txt 2>&1 && \
+    cat /opt/deepspeed_setup/ds_report_out.txt

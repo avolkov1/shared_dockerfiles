@@ -1,0 +1,36 @@
+# export TAG="tf19.09py3_tf1.14.0_ssh"
+# docker build -t nvcr.io/nvidian/sae/avolkov:$TAG -f Dockerfile.$TAG $(pwd)
+# or two steps:
+# docker build -t $TAG -f Dockerfile.$TAG $(pwd)
+# docker tag $TAG nvcr.io/nvidian/sae/avolkov:$TAG
+# docker push nvcr.io/nvidian/sae/avolkov:$TAG
+
+FROM nvcr.io/nvidia/tensorflow:19.09-py3
+
+
+RUN pip install Keras==2.2.5 --no-deps && \
+    git clone https://www.github.com/keras-team/keras-contrib.git && \
+    cd keras-contrib && \
+    git reset --hard 5ffab172661411218e517a50170bb97760ea567b && \
+    find ./keras_contrib -exec sed -i 's/image_dim_ordering/image_data_format/g' {} \; && \
+    python setup.py install
+
+
+# Install OpenSSH for MPI to communicate between containers
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        openssh-client openssh-server && \
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /var/run/sshd
+
+# Allow OpenSSH to talk to containers without asking for confirmation
+RUN cat /etc/ssh/ssh_config | grep -v StrictHostKeyChecking > /etc/ssh/ssh_config.new && \
+    echo "    StrictHostKeyChecking no" >> /etc/ssh/ssh_config.new && \
+    mv /etc/ssh/ssh_config.new /etc/ssh/ssh_config
+
+# ref: https://docs.docker.com/engine/examples/running_ssh_service/#build-an-eg_sshd-image
+RUN sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+
+# SSH login fix. Otherwise user is kicked off after login
+RUN sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
+

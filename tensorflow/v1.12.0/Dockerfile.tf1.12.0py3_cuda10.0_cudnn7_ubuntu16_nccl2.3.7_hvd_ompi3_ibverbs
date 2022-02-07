@@ -1,5 +1,5 @@
 # export TAG="tf1.12.0py3_cuda10.0_cudnn7_ubuntu16_nccl2.3.7_hvd_ompi3_ibverbs"
-# docker build -t nnvcr.io/nvidian/sae/avolkov:$TAG -f Dockerfile.$TAG $(pwd)
+# docker build -t nvcr.io/nvidian/sae/avolkov:$TAG -f Dockerfile.$TAG $(pwd)
 # or two steps:
 # docker build -t $TAG -f Dockerfile.$TAG $(pwd)
 # docker tag $TAG nvcr.io/nvidian/sae/avolkov:$TAG
